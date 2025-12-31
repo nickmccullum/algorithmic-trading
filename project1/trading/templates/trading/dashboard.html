@@ -1,0 +1,261 @@
+{% extends 'trading/base.html' %}
+
+{% block title %}Dashboard - Momentum Trading System{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2">Dashboard</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="recalculateMomentum()">
+                <i class="bi bi-calculator"></i> Recalculate Momentum
+            </button>
+        </div>
+        <div class="btn-group">
+            <small class="text-muted">Last updated: {{ calculation_date }}</small>
+        </div>
+    </div>
+</div>
+
+<!-- Key Metrics -->
+<div class="row mb-4">
+    {% if momentum_stats %}
+    <div class="col-md-3">
+        <div class="card card-metric">
+            <div class="metric-value">{{ momentum_stats.total_stocks }}</div>
+            <div class="metric-label">Total Stocks</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-metric">
+            <div class="metric-value {% if momentum_stats.mean_momentum > 0 %}momentum-positive{% else %}momentum-negative{% endif %}">
+                {{ momentum_stats.mean_momentum|floatformat:3 }}
+            </div>
+            <div class="metric-label">Mean Momentum</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-metric">
+            <div class="metric-value {% if momentum_stats.median_momentum > 0 %}momentum-positive{% else %}momentum-negative{% endif %}">
+                {{ momentum_stats.median_momentum|floatformat:3 }}
+            </div>
+            <div class="metric-label">Median Momentum</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-metric">
+            <div class="metric-value">{{ portfolios|length }}</div>
+            <div class="metric-label">Active Portfolios</div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Top and Bottom Performers -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Top 10 Momentum Stocks</h5>
+            </div>
+            <div class="card-body">
+                {% if top_performers %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Ticker</th>
+                                <th>Momentum</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for score in top_performers %}
+                            <tr>
+                                <td>{{ score.rank }}</td>
+                                <td><strong>{{ score.stock.ticker }}</strong></td>
+                                <td class="momentum-positive">{{ score.momentum_score|floatformat:3 }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No momentum data available</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Bottom 10 Momentum Stocks</h5>
+            </div>
+            <div class="card-body">
+                {% if bottom_performers %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Ticker</th>
+                                <th>Momentum</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for score in bottom_performers %}
+                            <tr>
+                                <td>{{ score.rank }}</td>
+                                <td><strong>{{ score.stock.ticker }}</strong></td>
+                                <td class="momentum-negative">{{ score.momentum_score|floatformat:3 }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No momentum data available</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Rebalances -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Recent Rebalance Events</h5>
+            </div>
+            <div class="card-body">
+                {% if recent_rebalances %}
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th>Stocks Analyzed</th>
+                                <th>Buy Signals</th>
+                                <th>Sell Signals</th>
+                                <th>Portfolio Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for rebalance in recent_rebalances %}
+                            <tr>
+                                <td>{{ rebalance.date }}</td>
+                                <td>
+                                    <span class="badge 
+                                        {% if rebalance.execution_status == 'COMPLETED' %}bg-success
+                                        {% elif rebalance.execution_status == 'FAILED' %}bg-danger
+                                        {% elif rebalance.execution_status == 'IN_PROGRESS' %}bg-warning
+                                        {% else %}bg-secondary{% endif %}">
+                                        {{ rebalance.execution_status }}
+                                    </span>
+                                </td>
+                                <td>{{ rebalance.total_stocks_analyzed }}</td>
+                                <td>{{ rebalance.buy_signals_generated }}</td>
+                                <td>{{ rebalance.sell_signals_generated }}</td>
+                                <td>
+                                    {% if rebalance.total_portfolio_value %}
+                                        ${{ rebalance.total_portfolio_value|floatformat:2 }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No rebalance events yet</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Active Portfolios -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Active Portfolios</h5>
+            </div>
+            <div class="card-body">
+                {% if portfolios %}
+                <div class="row">
+                    {% for portfolio in portfolios %}
+                    <div class="col-md-4 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="card-title">
+                                    <a href="{% url 'trading:portfolio_detail' portfolio.id %}">
+                                        {{ portfolio.name }}
+                                    </a>
+                                </h6>
+                                <p class="card-text">
+                                    <strong>Total Value:</strong> ${{ portfolio.total_value|floatformat:2 }}<br>
+                                    <strong>Cash:</strong> ${{ portfolio.current_cash|floatformat:2 }}
+                                </p>
+                                <a href="{% url 'trading:portfolio_detail' portfolio.id %}" class="btn btn-primary btn-sm">
+                                    View Details
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted">No active portfolios</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Recalculate momentum scores
+function recalculateMomentum() {
+    if (!confirm('Recalculate momentum scores for all stocks? This may take a few moments.')) {
+        return;
+    }
+    
+    const button = event.target;
+    const originalHTML = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="bi bi-arrow-repeat spinner-border-sm"></i> Calculating...';
+    
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+    
+    fetch('{% url "trading:recalculate_momentum" %}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload(); // Refresh to show updated scores
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error recalculating momentum:', error);
+        alert('Error recalculating momentum');
+    })
+    .finally(() => {
+        button.disabled = false;
+        button.innerHTML = originalHTML;
+    });
+}
+</script>
+{% endblock %}

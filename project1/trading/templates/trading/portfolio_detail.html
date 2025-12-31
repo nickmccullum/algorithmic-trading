@@ -1,0 +1,430 @@
+{% extends 'trading/base.html' %}
+
+{% block title %}{{ portfolio.name }} - Portfolio Details{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ portfolio.name }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-primary">Sync Portfolio</button>
+            <button type="button" class="btn btn-sm btn-secondary">Rebalance</button>
+        </div>
+        <div class="btn-group">
+            <a href="{% url 'trading:delete_portfolio' portfolio.id %}" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash"></i> Delete
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Portfolio Summary -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card card-metric">
+            <div class="metric-value">${{ portfolio.total_value|floatformat:0 }}</div>
+            <div class="metric-label">Total Value</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-metric">
+            <div class="metric-value">${{ portfolio.current_cash|floatformat:0 }}</div>
+            <div class="metric-label">Cash</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-metric">
+            <div class="metric-value">${{ total_positions_value|floatformat:0 }}</div>
+            <div class="metric-label">Positions Value</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-metric">
+            <div class="metric-value {% if total_unrealized_pnl > 0 %}pnl-positive{% else %}pnl-negative{% endif %}">
+                ${{ total_unrealized_pnl|floatformat:0 }}
+            </div>
+            <div class="metric-label">Unrealized P&L</div>
+        </div>
+    </div>
+</div>
+
+<!-- Manual Trade Form -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-arrow-left-right"></i> Place Manual Trade
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="manualTradeForm">
+                    {% csrf_token %}
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Ticker</label>
+                            <input type="text" class="form-control" id="ticker" placeholder="e.g., AAPL" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Trade Type</label>
+                            <select class="form-select" id="tradeType" required>
+                                <option value="">Select...</option>
+                                <option value="BUY">Buy</option>
+                                <option value="SELL">Sell</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Quantity</label>
+                        <input type="number" class="form-control" id="quantity" min="1" placeholder="Number of shares" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-send"></i> Place Trade
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-lightning-charge"></i> Quick Actions
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <button class="btn btn-outline-primary w-100" onclick="syncPortfolio()">
+                            <i class="bi bi-arrow-clockwise"></i><br>
+                            <small>Sync Portfolio</small>
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <button class="btn btn-outline-warning w-100" onclick="generateSignals()">
+                            <i class="bi bi-lightbulb"></i><br>
+                            <small>Generate Signals</small>
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <a href="{% url 'trading:trading_signals' %}" class="btn btn-outline-success w-100">
+                            <i class="bi bi-graph-up-arrow"></i><br>
+                            <small>Trading Signals</small>
+                        </a>
+                    </div>
+                    <div class="col-md-6">
+                        <a href="{% url 'trading:momentum_scores' %}" class="btn btn-outline-info w-100">
+                            <i class="bi bi-speedometer2"></i><br>
+                            <small>Momentum Scores</small>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Current Positions -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Current Positions</h5>
+            </div>
+            <div class="card-body">
+                {% if positions %}
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Ticker</th>
+                                <th>Quantity</th>
+                                <th>Avg Cost</th>
+                                <th>Current Price</th>
+                                <th>Market Value</th>
+                                <th>Unrealized P&L</th>
+                                <th>P&L %</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for position in positions %}
+                            <tr>
+                                <td><strong>{{ position.stock.ticker }}</strong></td>
+                                <td>{{ position.quantity }}</td>
+                                <td>${{ position.average_cost|floatformat:2 }}</td>
+                                <td>${{ position.current_price|floatformat:2 }}</td>
+                                <td>${{ position.current_value|floatformat:2 }}</td>
+                                <td class="{% if position.unrealized_pnl > 0 %}pnl-positive{% else %}pnl-negative{% endif %}">
+                                    ${{ position.unrealized_pnl|floatformat:2 }}
+                                </td>
+                                <td class="{% if position.unrealized_pnl_percent > 0 %}pnl-positive{% else %}pnl-negative{% endif %}">
+                                    {{ position.unrealized_pnl_percent|floatformat:2 }}%
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No current positions</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Trades -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Recent Trades</h5>
+            </div>
+            <div class="card-body">
+                {% if recent_trades %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Ticker</th>
+                                <th>Quantity</th>
+                                <th>Price</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for trade in recent_trades %}
+                            <tr>
+                                <td>{{ trade.created_at|date:"m/d/Y H:i" }}</td>
+                                <td>
+                                    <span class="badge {% if trade.trade_type == 'BUY' %}bg-success{% else %}bg-danger{% endif %}">
+                                        {{ trade.trade_type }}
+                                    </span>
+                                </td>
+                                <td>{{ trade.stock.ticker }}</td>
+                                <td>{{ trade.quantity }}</td>
+                                <td>
+                                    {% if trade.filled_price %}
+                                        ${{ trade.filled_price|floatformat:2 }}
+                                    {% else %}
+                                        ${{ trade.price|floatformat:2 }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge 
+                                        {% if trade.status == 'FILLED' %}bg-success
+                                        {% elif trade.status == 'REJECTED' or trade.status == 'CANCELLED' %}bg-danger
+                                        {% else %}bg-warning{% endif %}">
+                                        {{ trade.status }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No recent trades</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Signals -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Recent Signals</h5>
+            </div>
+            <div class="card-body">
+                {% if recent_signals %}
+                {% for signal in recent_signals %}
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between">
+                        <span class="badge {% if signal.signal_type == 'BUY' %}bg-success{% else %}bg-danger{% endif %}">
+                            {{ signal.signal_type }}
+                        </span>
+                        <small class="text-muted">{{ signal.signal_date }}</small>
+                    </div>
+                    <div><strong>{{ signal.stock.ticker }}</strong></div>
+                    <small class="text-muted">{{ signal.reason|truncatechars:50 }}</small>
+                </div>
+                <hr>
+                {% endfor %}
+                {% else %}
+                <p class="text-muted">No recent signals</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Performance Chart -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Portfolio Performance</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="performanceChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Portfolio performance chart
+async function loadPerformanceChart() {
+    try {
+        const response = await fetch(`/api/portfolio/{{ portfolio.id }}/performance/?days=30`);
+        const data = await response.json();
+        
+        const ctx = document.getElementById('performanceChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.dates,
+                datasets: [{
+                    label: 'Portfolio Value',
+                    data: data.values,
+                    borderColor: 'rgb(75, 192, 192)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        ticks: {
+                            callback: function(value) {
+                                return '$' + value.toLocaleString();
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return 'Value: $' + context.parsed.y.toLocaleString();
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Error loading performance chart:', error);
+    }
+}
+
+// Load chart when page loads
+document.addEventListener('DOMContentLoaded', loadPerformanceChart);
+
+// Manual Trade Form Handler
+document.getElementById('manualTradeForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const ticker = document.getElementById('ticker').value.trim().toUpperCase();
+    const tradeType = document.getElementById('tradeType').value;
+    const quantity = parseInt(document.getElementById('quantity').value);
+    
+    if (!ticker || !tradeType || !quantity || quantity <= 0) {
+        alert('Please fill in all fields with valid values');
+        return;
+    }
+    
+    const submitButton = this.querySelector('button[type="submit"]');
+    const originalText = submitButton.innerHTML;
+    submitButton.disabled = true;
+    submitButton.innerHTML = '<i class="bi bi-arrow-repeat spinner-border-sm"></i> Placing Trade...';
+    
+    // Prepare form data
+    const formData = new FormData();
+    formData.append('ticker', ticker);
+    formData.append('trade_type', tradeType);
+    formData.append('quantity', quantity);
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    // Submit trade
+    fetch(`{% url 'trading:execute_trade' portfolio.id %}`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            // Reset form
+            this.reset();
+            // Optionally reload page to show updated positions
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error placing trade:', error);
+        alert('Error placing trade. Please try again.');
+    })
+    .finally(() => {
+        submitButton.disabled = false;
+        submitButton.innerHTML = originalText;
+    });
+});
+
+// Quick Action Functions
+function syncPortfolio() {
+    if (confirm('Sync portfolio with SnapTrade? This will update positions and balances.')) {
+        alert('Sync functionality coming soon!');
+    }
+}
+
+function generateSignals() {
+    if (!confirm('Generate new trading signals based on current momentum data? This may take a few moments.')) {
+        return;
+    }
+    
+    const button = event.target;
+    const originalHTML = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="bi bi-arrow-repeat spinner-border-sm"></i><br><small>Generating...</small>';
+    
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    fetch('{% url "trading:generate_signals" %}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            // Optionally reload to show updated data
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error generating signals:', error);
+        alert('Error generating signals');
+    })
+    .finally(() => {
+        button.disabled = false;
+        button.innerHTML = originalHTML;
+    });
+}
+</script>
+{% endblock %}

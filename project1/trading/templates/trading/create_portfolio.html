@@ -1,0 +1,518 @@
+{% extends 'trading/base.html' %}
+
+{% block title %}Create Portfolio - Momentum Trading System{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Create New Portfolio</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'trading:portfolio_list' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Portfolios
+        </a>
+    </div>
+</div>
+
+{% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    {% endfor %}
+{% endif %}
+
+<!-- Progress Steps -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="progress-wrapper">
+            <div class="progress" style="height: 3px;">
+                <div class="progress-bar bg-primary" role="progressbar" style="width: 33%" id="progressBar"></div>
+            </div>
+            <div class="d-flex justify-content-between mt-2">
+                <small class="step-label active" id="step1Label">
+                    <i class="bi bi-1-circle-fill"></i> Portfolio Details
+                </small>
+                <small class="step-label" id="step2Label">
+                    <i class="bi bi-2-circle"></i> Connect Brokerage
+                </small>
+                <small class="step-label" id="step3Label">
+                    <i class="bi bi-3-circle"></i> Review & Create
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-10 mx-auto">
+        <form method="post" id="portfolioForm">
+            {% csrf_token %}
+            
+            <!-- Step 1: Portfolio Details -->
+            <div class="step-content active" id="step1">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-briefcase"></i> Portfolio Details
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="mb-3">
+                                    <label for="name" class="form-label">Portfolio Name <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="name" name="name" required 
+                                           placeholder="e.g., Growth Strategy 2025">
+                                    <div class="form-text">Choose a unique name for your portfolio.</div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="description" class="form-label">Description</label>
+                                    <textarea class="form-control" id="description" name="description" rows="3"
+                                              placeholder="Describe your investment strategy and goals..."></textarea>
+                                </div>
+                                
+                            </div>
+                            <div class="col-md-4">
+                                <div class="bg-light p-3 rounded">
+                                    <h6>💡 Portfolio Tips</h6>
+                                    <ul class="small mb-0">
+                                        <li>Choose a descriptive name</li>
+                                        <li>Connect a real brokerage account</li>
+                                        <li>Consider your risk tolerance</li>
+                                        <li>Document your strategy</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Connect Brokerage -->
+            <div class="step-content" id="step2">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-link-45deg"></i> Connect Your Brokerage Account
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="alert alert-info">
+                                    <i class="bi bi-info-circle"></i>
+                                    <strong>Live Trading Integration</strong><br>
+                                    Connect your brokerage account through SnapTrade to enable automated trading. 
+                                    We'll automatically fetch your account balance and positions.
+                                </div>
+                                
+                                <div class="alert alert-warning">
+                                    <i class="bi bi-exclamation-triangle"></i>
+                                    <strong>Note:</strong> This requires valid SnapTrade API credentials configured in your environment. 
+                                    If not configured, you may see connection errors during authentication.
+                                </div>
+                                
+                                <div id="snaptradeSection">
+                                    <h6>Supported Brokerages:</h6>
+                                    <div class="row mb-3">
+                                        <div class="col-md-6 mx-auto">
+                                            <div class="brokerage-option p-3 border rounded text-center" 
+                                                 data-brokerage="alpaca" onclick="selectBrokerage('alpaca')">
+                                                <img src="https://alpaca.markets/assets/alpaca-logo-mark.svg" 
+                                                     alt="Alpaca" style="height: 30px;" class="mb-2">
+                                                <div><strong>Alpaca</strong></div>
+                                                <small class="text-muted">Commission-free trading</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div id="brokerageForm" style="display: none;">
+                                        <div class="alert alert-warning">
+                                            <i class="bi bi-shield-check"></i>
+                                            You'll be redirected to SnapTrade to securely connect your account. 
+                                            Your credentials are never stored on our servers.
+                                        </div>
+                                        
+                                        <div class="text-center">
+                                            <button type="button" class="btn btn-primary btn-lg" id="connectButton">
+                                                <i class="bi bi-shield-lock"></i> Connect Securely via SnapTrade
+                                            </button>
+                                        </div>
+                                        
+                                        <div id="connectionStatus" class="mt-3" style="display: none;">
+                                            <div class="alert alert-success">
+                                                <i class="bi bi-check-circle"></i> 
+                                                Account connected successfully!
+                                            </div>
+                                            
+                                            <div class="card mt-3">
+                                                <div class="card-header">
+                                                    <h6 class="card-title mb-0">Account Information</h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    <div class="row">
+                                                        <div class="col-md-6">
+                                                            <strong>Account Type:</strong> <span id="accountType">-</span><br>
+                                                            <strong>Account Number:</strong> <span id="accountNumber">-</span><br>
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <strong>Available Cash:</strong> <span id="availableCash">-</span><br>
+                                                            <strong>Total Equity:</strong> <span id="totalEquity">-</span><br>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <input type="hidden" id="selected_brokerage" name="selected_brokerage">
+                                <input type="hidden" id="snaptrade_user_id" name="snaptrade_user_id">
+                                <input type="hidden" id="snaptrade_account_id" name="snaptrade_account_id">
+                                <input type="hidden" id="account_cash" name="account_cash">
+                                <input type="hidden" id="account_equity" name="account_equity">
+                            </div>
+                            <div class="col-md-4">
+                                <div class="bg-light p-3 rounded">
+                                    <h6>🔒 Security & Privacy</h6>
+                                    <ul class="small mb-0">
+                                        <li>Bank-level encryption</li>
+                                        <li>Read-only account access</li>
+                                        <li>No password storage</li>
+                                        <li>Regulatory compliance</li>
+                                        <li>Revoke access anytime</li>
+                                    </ul>
+                                </div>
+                                <div class="bg-light p-3 rounded mt-3">
+                                    <h6>📊 What We Access</h6>
+                                    <ul class="small mb-0">
+                                        <li>Account balances</li>
+                                        <li>Portfolio positions</li>
+                                        <li>Trade execution</li>
+                                        <li>Order status updates</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Review & Create -->
+            <div class="step-content" id="step3">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-check-circle"></i> Review & Create Portfolio
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <h6>Portfolio Summary</h6>
+                                <div class="review-section p-3 bg-light rounded mb-3">
+                                    <div class="row">
+                                        <div class="col-sm-6">
+                                            <strong>Name:</strong> <span id="review-name">-</span><br>
+                                            <strong>Available Cash:</strong> <span id="review-cash">-</span><br>
+                                            <strong>Total Equity:</strong> <span id="review-equity">-</span>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <strong>Brokerage:</strong> <span id="review-brokerage">-</span><br>
+                                            <strong>Account:</strong> <span id="review-account">-</span>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <strong>Description:</strong><br>
+                                        <span id="review-description">-</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="alert alert-success">
+                                    <i class="bi bi-rocket"></i>
+                                    <strong>Ready to Launch!</strong><br>
+                                    Your portfolio will be created and ready to start executing the momentum trading strategy.
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="bg-light p-3 rounded">
+                                    <h6>🎯 Next Steps</h6>
+                                    <ol class="small mb-0">
+                                        <li>Portfolio created</li>
+                                        <li>Initial data sync</li>
+                                        <li>Strategy activation</li>
+                                        <li>First momentum analysis</li>
+                                        <li>Trading signal generation</li>
+                                    </ol>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation Buttons -->
+            <div class="d-flex justify-content-between mt-4">
+                <div>
+                    <button type="button" class="btn btn-outline-secondary" id="prevBtn" style="display: none;">
+                        <i class="bi bi-arrow-left"></i> Previous
+                    </button>
+                </div>
+                <div>
+                    <a href="{% url 'trading:portfolio_list' %}" class="btn btn-secondary me-2">Cancel</a>
+                    <button type="button" class="btn btn-primary" id="nextBtn">
+                        Next <i class="bi bi-arrow-right"></i>
+                    </button>
+                    <button type="button" class="btn btn-success" id="submitBtn" style="display: none;">
+                        <i class="bi bi-plus-circle"></i> Create Portfolio
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.step-content {
+    display: none;
+}
+.step-content.active {
+    display: block;
+}
+.step-label {
+    color: #6c757d;
+}
+.step-label.active {
+    color: #0d6efd;
+    font-weight: bold;
+}
+.brokerage-option {
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.brokerage-option:hover {
+    background-color: #f8f9fa;
+    border-color: #0d6efd !important;
+}
+.brokerage-option.selected {
+    border-color: #0d6efd !important;
+    background-color: #e7f3ff;
+}
+.review-section {
+    border-left: 4px solid #0d6efd;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentStep = 1;
+const totalSteps = 3;
+
+// Step navigation
+function showStep(step) {
+    // Hide all steps
+    document.querySelectorAll('.step-content').forEach(el => {
+        el.classList.remove('active');
+    });
+    
+    // Show current step
+    document.getElementById(`step${step}`).classList.add('active');
+    
+    // Update progress bar
+    const progress = (step / totalSteps) * 100;
+    document.getElementById('progressBar').style.width = progress + '%';
+    
+    // Update step labels
+    document.querySelectorAll('.step-label').forEach((el, index) => {
+        const stepNum = index + 1;
+        const icon = el.querySelector('i');
+        
+        if (stepNum < step) {
+            el.classList.add('active');
+            icon.className = `bi bi-${stepNum}-circle-fill`;
+        } else if (stepNum === step) {
+            el.classList.add('active');
+            icon.className = `bi bi-${stepNum}-circle-fill`;
+        } else {
+            el.classList.remove('active');
+            icon.className = `bi bi-${stepNum}-circle`;
+        }
+    });
+    
+    // Update buttons
+    document.getElementById('prevBtn').style.display = step > 1 ? 'block' : 'none';
+    document.getElementById('nextBtn').style.display = step < totalSteps ? 'block' : 'none';
+    document.getElementById('submitBtn').style.display = step === totalSteps ? 'block' : 'none';
+    
+    currentStep = step;
+}
+
+// Navigation button handlers
+document.getElementById('nextBtn').addEventListener('click', function() {
+    if (validateCurrentStep()) {
+        if (currentStep < totalSteps) {
+            showStep(currentStep + 1);
+            if (currentStep === 3) {
+                updateReview();
+            }
+        }
+    }
+});
+
+document.getElementById('prevBtn').addEventListener('click', function() {
+    if (currentStep > 1) {
+        showStep(currentStep - 1);
+    }
+});
+
+// Brokerage selection
+function selectBrokerage(brokerage) {
+    // Remove previous selection
+    document.querySelectorAll('.brokerage-option').forEach(el => {
+        el.classList.remove('selected');
+    });
+    
+    // Select new brokerage
+    const selected = document.querySelector(`[data-brokerage="${brokerage}"]`);
+    selected.classList.add('selected');
+    
+    // Update hidden field
+    document.getElementById('selected_brokerage').value = brokerage;
+    
+    // Show connection form
+    document.getElementById('brokerageForm').style.display = 'block';
+}
+
+// Real SnapTrade connection
+document.getElementById('connectButton').addEventListener('click', function() {
+    const button = this;
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="bi bi-arrow-repeat spinner-border-sm"></i> Connecting...';
+    
+    // Get form data
+    const formData = new FormData();
+    formData.append('name', document.getElementById('name').value);
+    formData.append('description', document.getElementById('description').value);
+    formData.append('selected_brokerage', document.getElementById('selected_brokerage').value);
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    // Call SnapTrade auth endpoint
+    fetch('{% url "trading:snaptrade_auth" %}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Open SnapTrade OAuth in new window
+            const authWindow = window.open(
+                data.auth_url, 
+                'snaptrade_auth', 
+                'width=600,height=700,scrollbars=yes,resizable=yes'
+            );
+            
+            // Monitor for auth completion
+            const checkClosed = setInterval(() => {
+                if (authWindow.closed) {
+                    clearInterval(checkClosed);
+                    
+                    // Check if authentication was successful
+                    // The callback will handle portfolio creation
+                    // For now, show loading state
+                    button.innerHTML = '<i class="bi bi-check-circle"></i> Authentication complete';
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                }
+            }, 1000);
+            
+            button.innerHTML = '<i class="bi bi-window"></i> Complete authentication in popup window';
+            
+        } else {
+            // Show error
+            alert('Failed to initiate SnapTrade connection: ' + data.error);
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Connection error. Please try again.');
+        button.disabled = false;
+        button.innerHTML = originalText;
+    });
+});
+
+// Handle final portfolio creation
+document.getElementById('submitBtn').addEventListener('click', function() {
+    alert('Portfolio creation is handled automatically after SnapTrade authentication. Please ensure you have completed the brokerage connection in step 2.');
+});
+
+// Validation
+function validateCurrentStep() {
+    if (currentStep === 1) {
+        const name = document.getElementById('name').value.trim();
+        
+        if (!name) {
+            alert('Please enter a portfolio name.');
+            return false;
+        }
+    }
+    
+    if (currentStep === 2) {
+        const brokerage = document.getElementById('selected_brokerage').value;
+        const userId = document.getElementById('snaptrade_user_id').value;
+        const accountId = document.getElementById('snaptrade_account_id').value;
+        const accountCash = document.getElementById('account_cash').value;
+        
+        if (!brokerage) {
+            alert('Please select a brokerage.');
+            return false;
+        }
+        if (!userId || !accountId || !accountCash) {
+            alert('Please complete the brokerage connection.');
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+// Update review section
+function updateReview() {
+    document.getElementById('review-name').textContent = 
+        document.getElementById('name').value || '-';
+    
+    const cash = document.getElementById('account_cash').value;
+    document.getElementById('review-cash').textContent = 
+        cash ? '$' + parseFloat(cash).toLocaleString() : '-';
+    
+    const equity = document.getElementById('account_equity').value;
+    document.getElementById('review-equity').textContent = 
+        equity ? '$' + parseFloat(equity).toLocaleString() : '-';
+    
+    document.getElementById('review-description').textContent = 
+        document.getElementById('description').value || 'No description provided';
+    
+    const brokerage = document.getElementById('selected_brokerage').value;
+    const accountNumber = document.getElementById('accountNumber') ? 
+        document.getElementById('accountNumber').textContent : '-';
+    
+    document.getElementById('review-brokerage').textContent = 
+        brokerage === 'alpaca' ? 'Alpaca' : 
+        brokerage === 'interactive' ? 'Interactive Brokers' : '-';
+    
+    document.getElementById('review-account').textContent = accountNumber;
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    showStep(1);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,173 @@
+{% extends 'trading/base.html' %}
+
+{% block title %}Connection Complete - Momentum Trading System{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-5" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh;">
+    <div class="row justify-content-center align-items-center h-100">
+        <div class="col-lg-6 col-md-8">
+            <div class="card shadow-lg border-0" style="border-radius: 20px; backdrop-filter: blur(10px); background: rgba(255, 255, 255, 0.95);">
+                <div class="card-body text-center p-5">
+                    <!-- Success Icon -->
+                    <div class="mb-4">
+                        <div class="bg-success rounded-circle d-inline-flex align-items-center justify-content-center" 
+                             style="width: 100px; height: 100px;">
+                            <i class="bi bi-check-circle-fill text-white" style="font-size: 3rem;"></i>
+                        </div>
+                    </div>
+                    
+                    <!-- Main Message -->
+                    <h1 class="display-4 fw-bold text-success mb-3">
+                        Connection Complete!
+                    </h1>
+                    
+                    <p class="lead text-muted mb-4">
+                        🎉 Your brokerage account has been successfully connected via SnapTrade
+                    </p>
+                    
+                    <!-- Portfolio Info -->
+                    {% if portfolio %}
+                    <div class="bg-light rounded-3 p-4 mb-4">
+                        <h5 class="fw-bold text-dark mb-3">
+                            <i class="bi bi-briefcase-fill text-primary me-2"></i>
+                            Portfolio Created
+                        </h5>
+                        
+                        <div class="row text-center">
+                            <div class="col-md-4">
+                                <div class="mb-2">
+                                    <strong class="text-success fs-4">"{{ portfolio.name }}"</strong>
+                                </div>
+                                <small class="text-muted">Portfolio Name</small>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-2">
+                                    <strong class="text-primary fs-4">${{ portfolio.current_cash|floatformat:2 }}</strong>
+                                </div>
+                                <small class="text-muted">Available Cash</small>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-2">
+                                    <strong class="text-info fs-4">{{ brokerage_name }}</strong>
+                                </div>
+                                <small class="text-muted">Connected Brokerage</small>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Features List -->
+                    <div class="row text-start mb-4">
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="bi bi-shield-check text-success me-2"></i>
+                                <span class="small">Secure authentication</span>
+                            </div>
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="bi bi-graph-up-arrow text-success me-2"></i>
+                                <span class="small">Real-time portfolio sync</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="bi bi-lightning-charge text-success me-2"></i>
+                                <span class="small">Automated trading signals</span>
+                            </div>
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="bi bi-bar-chart text-success me-2"></i>
+                                <span class="small">Momentum analytics</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                        {% if portfolio %}
+                        <a href="{% url 'trading:portfolio_detail' portfolio.id %}" 
+                           class="btn btn-success btn-lg px-4 me-md-2">
+                            <i class="bi bi-eye-fill me-2"></i>
+                            View Portfolio
+                        </a>
+                        {% endif %}
+                        <a href="{% url 'trading:dashboard' %}" 
+                           class="btn btn-outline-primary btn-lg px-4">
+                            <i class="bi bi-speedometer2 me-2"></i>
+                            Dashboard
+                        </a>
+                    </div>
+                    
+                    <!-- Footer Message -->
+                    <div class="mt-4 pt-3 border-top">
+                        <small class="text-muted">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Your account data is securely managed through SnapTrade's encrypted platform
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Celebration Animation -->
+<style>
+    @keyframes float {
+        0% { transform: translatey(0px); }
+        50% { transform: translatey(-20px); }
+        100% { transform: translatey(0px); }
+    }
+    
+    .card {
+        animation: float 6s ease-in-out infinite;
+    }
+    
+    .bi-check-circle-fill {
+        animation: pulse 2s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+        100% { transform: scale(1); }
+    }
+</style>
+
+<!-- Confetti Effect -->
+<script>
+    // Simple confetti effect on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(function() {
+            // Create some visual celebration
+            const colors = ['#667eea', '#764ba2', '#28a745', '#007bff'];
+            
+            for (let i = 0; i < 50; i++) {
+                const confetti = document.createElement('div');
+                confetti.style.position = 'fixed';
+                confetti.style.left = Math.random() * window.innerWidth + 'px';
+                confetti.style.top = '-10px';
+                confetti.style.width = '10px';
+                confetti.style.height = '10px';
+                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                confetti.style.borderRadius = '50%';
+                confetti.style.pointerEvents = 'none';
+                confetti.style.zIndex = '9999';
+                confetti.style.animation = `fall ${3 + Math.random() * 2}s linear forwards`;
+                
+                document.body.appendChild(confetti);
+                
+                setTimeout(() => confetti.remove(), 5000);
+            }
+        }, 500);
+    });
+    
+    // CSS for falling animation
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes fall {
+            0% { transform: translateY(-100px) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+        }
+    `;
+    document.head.appendChild(style);
+</script>
+{% endblock %}

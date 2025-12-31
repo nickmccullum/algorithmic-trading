@@ -1,0 +1,114 @@
+{% extends 'trading/base.html' %}
+
+{% block title %}Delete Portfolio - {{ portfolio.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Delete Portfolio</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'trading:portfolio_detail' portfolio.id %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Portfolio
+        </a>
+    </div>
+</div>
+
+{% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    {% endfor %}
+{% endif %}
+
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-exclamation-triangle"></i> Confirm Portfolio Deletion
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning" role="alert">
+                    <strong>Warning:</strong> This action cannot be undone. The portfolio will be permanently removed from your account.
+                </div>
+                
+                <h6>Portfolio Details:</h6>
+                <ul class="list-unstyled">
+                    <li><strong>Name:</strong> {{ portfolio.name }}</li>
+                    <li><strong>Total Value:</strong> ${{ portfolio.total_value|floatformat:2 }}</li>
+                    <li><strong>Current Cash:</strong> ${{ portfolio.current_cash|floatformat:2 }}</li>
+                    <li><strong>Created:</strong> {{ portfolio.created_at|date:"F d, Y" }}</li>
+                </ul>
+                
+                {% if portfolio.description %}
+                    <p><strong>Description:</strong> {{ portfolio.description }}</p>
+                {% endif %}
+                
+                <hr class="my-4">
+                
+                <h6>Impact of Deletion:</h6>
+                <ul class="list-unstyled">
+                    <li><i class="bi bi-briefcase text-danger"></i> <strong>{{ total_positions }}</strong> position(s) will be removed</li>
+                    <li><i class="bi bi-clock-history text-danger"></i> <strong>{{ total_trades }}</strong> trade record(s) will be removed</li>
+                    <li><i class="bi bi-graph-down text-danger"></i> All performance history will be lost</li>
+                    <li><i class="bi bi-bell-slash text-danger"></i> Related trading signals will be orphaned</li>
+                </ul>
+                
+                {% if total_positions > 0 or portfolio.current_cash != portfolio.total_value %}
+                    <div class="alert alert-danger" role="alert">
+                        <strong>Warning:</strong> This portfolio has active positions or investments. Consider liquidating positions before deletion.
+                    </div>
+                {% endif %}
+                
+                <hr class="my-4">
+                
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="confirmDelete" required>
+                            <label class="form-check-label" for="confirmDelete">
+                                I understand that this action cannot be undone and want to delete this portfolio.
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'trading:portfolio_detail' portfolio.id %}" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </a>
+                        <button type="submit" name="confirm_delete" value="yes" class="btn btn-danger" id="deleteButton" disabled>
+                            <i class="bi bi-trash"></i> Delete Portfolio
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Enable delete button only when checkbox is checked
+document.getElementById('confirmDelete').addEventListener('change', function() {
+    const deleteButton = document.getElementById('deleteButton');
+    deleteButton.disabled = !this.checked;
+    
+    if (this.checked) {
+        deleteButton.classList.remove('btn-danger');
+        deleteButton.classList.add('btn-danger');
+    }
+});
+
+// Add additional confirmation on form submit
+document.querySelector('form').addEventListener('submit', function(e) {
+    const portfolioName = '{{ portfolio.name|escapejs }}';
+    if (!confirm(`Are you absolutely sure you want to delete "${portfolioName}"? This cannot be undone.`)) {
+        e.preventDefault();
+    }
+});
+</script>
+{% endblock %}

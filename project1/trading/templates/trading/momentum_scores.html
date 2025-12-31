@@ -1,0 +1,182 @@
+{% extends 'trading/base.html' %}
+{% load static %}
+
+{% block title %}Momentum Scores - Momentum Trading System{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Momentum Scores</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <select id="dateSelect" class="form-select" onchange="filterByDate()">
+                {% for date in available_dates %}
+                <option value="{{ date|date:'Y-m-d' }}" {% if date == calculation_date %}selected{% endif %}>
+                    {{ date|date:'M d, Y' }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="button" class="btn btn-sm btn-primary" onclick="recalculateMomentum()">
+            <i class="bi bi-calculator"></i> Recalculate
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshData()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">Calculation Date</h5>
+                <p class="card-text h4">{{ calculation_date|date:'M d, Y' }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">Total Stocks</h5>
+                <p class="card-text h4">{{ scores.count }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">Top Quintile</h5>
+                <p class="card-text h4" id="top-quintile-count">{{ scores|length|floatformat:0 }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">All Momentum Scores</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Ticker</th>
+                                <th>Company Name</th>
+                                <th>Momentum Score</th>
+                                <th>Quintile</th>
+                                <th>Top Quintile</th>
+                                <th>Market Cap</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for score in scores %}
+                            <tr class="{% if score.is_top_quintile %}table-success{% elif score.quintile == 5 %}table-danger{% endif %}">
+                                <td>{{ forloop.counter }}</td>
+                                <td class="fw-bold">{{ score.stock.ticker }}</td>
+                                <td>{{ score.stock.company_name|default:"-" }}</td>
+                                <td>
+                                    <span class="{% if score.momentum_score > 0 %}momentum-positive{% else %}momentum-negative{% endif %}">
+                                        {{ score.momentum_score|floatformat:4 }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge {% if score.quintile == 1 %}bg-success{% elif score.quintile == 5 %}bg-danger{% else %}bg-secondary{% endif %}">
+                                        Q{{ score.quintile }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if score.is_top_quintile %}
+                                        <i class="bi bi-check-circle-fill text-success"></i>
+                                    {% else %}
+                                        <i class="bi bi-x-circle text-muted"></i>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if score.stock.market_cap %}
+                                        ${{ score.stock.market_cap|floatformat:0 }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted">
+                                    No momentum scores available for {{ calculation_date|date:'M d, Y' }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Calculate top quintile count (20% of total)
+document.addEventListener('DOMContentLoaded', function() {
+    const totalCount = {{ scores|length }};
+    const topQuintileCount = Math.floor(totalCount * 0.2);
+    document.getElementById('top-quintile-count').textContent = topQuintileCount;
+});
+
+function filterByDate() {
+    const selectedDate = document.getElementById('dateSelect').value;
+    if (selectedDate) {
+        window.location.href = `?date=${selectedDate}`;
+    }
+}
+
+function refreshData() {
+    window.location.reload();
+}
+
+// Auto-refresh every 5 minutes
+setInterval(refreshData, 300000);
+
+// Recalculate momentum scores
+function recalculateMomentum() {
+    if (!confirm('Recalculate momentum scores for all stocks? This may take a few moments.')) {
+        return;
+    }
+    
+    const button = event.target;
+    const originalHTML = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="bi bi-arrow-repeat spinner-border-sm"></i> Calculating...';
+    
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+    
+    fetch('{% url "trading:recalculate_momentum" %}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload(); // Refresh to show updated scores
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error recalculating momentum:', error);
+        alert('Error recalculating momentum');
+    })
+    .finally(() => {
+        button.disabled = false;
+        button.innerHTML = originalHTML;
+    });
+}
+</script>
+{% endblock %}

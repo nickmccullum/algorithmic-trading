@@ -1,0 +1,451 @@
+{% extends 'trading/base.html' %}
+{% load static %}
+
+{% block title %}Trading Signals - Momentum Trading System{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Trading Signals</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="filterByType('all')">
+                All
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-success" onclick="filterByType('BUY')">
+                Buy Signals
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="filterByType('SELL')">
+                Sell Signals
+            </button>
+        </div>
+        <button type="button" class="btn btn-sm btn-success" onclick="generateSignals()">
+            <i class="bi bi-lightbulb"></i> Generate Signals
+        </button>
+        {% if pending_signals_count > 0 %}
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="deletePendingSignals()">
+            <i class="bi bi-trash"></i> Delete Pending ({{ pending_signals_count }})
+        </button>
+        {% endif %}
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshData()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">Total Signals</h5>
+                <p class="card-text h4">{{ signals.count }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center border-success">
+            <div class="card-body">
+                <h5 class="card-title text-success">Buy Signals</h5>
+                <p class="card-text h4 text-success">{{ buy_signals_count }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center border-danger">
+            <div class="card-body">
+                <h5 class="card-title text-danger">Sell Signals</h5>
+                <p class="card-text h4 text-danger">{{ sell_signals_count }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Recent Trading Signals</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover" id="signalsTable">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Ticker</th>
+                                <th>Signal Type</th>
+                                <th>Momentum Score</th>
+                                <th>Price</th>
+                                <th>Strength</th>
+                                <th>Reason</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for signal in signals %}
+                            <tr class="signal-row" data-signal-type="{{ signal.signal_type }}">
+                                <td>{{ signal.signal_date|date:'M d, Y' }}</td>
+                                <td>{{ signal.created_at|time:'H:i:s' }}</td>
+                                <td class="fw-bold">{{ signal.stock.ticker }}</td>
+                                <td>
+                                    <span class="badge {% if signal.signal_type == 'BUY' %}bg-success{% elif signal.signal_type == 'SELL' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                        {{ signal.signal_type }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if signal.momentum_score %}
+                                        <span class="{% if signal.momentum_score.momentum_score > 0 %}momentum-positive{% else %}momentum-negative{% endif %}">
+                                            {{ signal.momentum_score.momentum_score|floatformat:4 }}
+                                        </span>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if signal.price %}
+                                        ${{ signal.price|floatformat:2 }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if signal.strength %}
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar {% if signal.strength >= 0.7 %}bg-success{% elif signal.strength >= 0.4 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                                 role="progressbar" 
+                                                 style="width: {{ signal.strength|floatformat:0 }}%" 
+                                                 aria-valuenow="{{ signal.strength|floatformat:0 }}" 
+                                                 aria-valuemin="0" 
+                                                 aria-valuemax="100"
+                                                 data-strength="{{ signal.strength }}">
+                                                {{ signal.strength|floatformat:2 }}
+                                            </div>
+                                        </div>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small class="text-muted">
+                                        {% if signal.reason %}
+                                            {{ signal.reason|truncatechars:50 }}
+                                        {% else %}
+                                            Momentum-based signal
+                                        {% endif %}
+                                    </small>
+                                </td>
+                                <td>
+                                    <span class="badge {% if signal.is_executed %}bg-primary{% else %}bg-warning{% endif %}">
+                                        {% if signal.is_executed %}Executed{% else %}Pending{% endif %}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if not signal.is_executed %}
+                                        <button class="btn btn-sm btn-{% if signal.signal_type == 'BUY' %}success{% else %}danger{% endif %}" 
+                                                onclick="executeSignal({{ signal.id }}, '{{ signal.signal_type }}', '{{ signal.stock.ticker }}')">
+                                            <i class="bi bi-{% if signal.signal_type == 'BUY' %}cart-plus{% else %}cart-dash{% endif %}"></i>
+                                            {{ signal.signal_type }}
+                                        </button>
+                                    {% else %}
+                                        <span class="text-muted small">Completed</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="10" class="text-center text-muted">
+                                    No trading signals available
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if signals %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Signal Distribution</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="signalChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filterByType(signalType) {
+    const rows = document.querySelectorAll('.signal-row');
+    const buttons = document.querySelectorAll('.btn-group .btn');
+    
+    // Update active button
+    buttons.forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    rows.forEach(row => {
+        const rowSignalType = row.getAttribute('data-signal-type');
+        if (signalType === 'all' || rowSignalType === signalType) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+function refreshData() {
+    window.location.reload();
+}
+
+// Initialize signal distribution chart if data exists
+{% if signals %}
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('signalChart').getContext('2d');
+    const chart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Buy Signals', 'Sell Signals'],
+            datasets: [{
+                data: [{{ buy_signals_count }}, {{ sell_signals_count }}],
+                backgroundColor: ['#28a745', '#dc3545'],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+});
+{% endif %}
+
+// Fix progress bar percentages
+document.addEventListener('DOMContentLoaded', function() {
+    const progressBars = document.querySelectorAll('.progress-bar[data-strength]');
+    progressBars.forEach(function(bar) {
+        const strength = parseFloat(bar.getAttribute('data-strength'));
+        const percentage = Math.round(strength * 100);
+        bar.style.width = percentage + '%';
+        bar.setAttribute('aria-valuenow', percentage);
+    });
+});
+
+// Auto-refresh every 5 minutes
+setInterval(refreshData, 300000);
+
+// Execute signal trade function
+function executeSignal(signalId, signalType, ticker) {
+    // Show portfolio selection modal
+    showPortfolioSelectionModal(signalId, signalType, ticker);
+}
+
+function showPortfolioSelectionModal(signalId, signalType, ticker) {
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.innerHTML = `
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Execute ${signalType} Signal</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Execute <strong>${signalType}</strong> signal for <strong>${ticker}</strong></p>
+                    <div class="mb-3">
+                        <label class="form-label">Select Portfolio:</label>
+                        <select class="form-select" id="portfolioSelect">
+                            <option value="">Loading portfolios...</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-${signalType === 'BUY' ? 'success' : 'danger'}" onclick="confirmExecuteSignal(${signalId})">
+                        Execute ${signalType}
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    const modalInstance = new bootstrap.Modal(modal);
+    
+    // Load portfolios
+    fetch('/api/portfolios/')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('portfolioSelect');
+            if (data.portfolios && data.portfolios.length > 0) {
+                select.innerHTML = data.portfolios.map(portfolio => 
+                    `<option value="${portfolio.id}">${portfolio.name} (Cash: $${portfolio.current_cash.toLocaleString()})</option>`
+                ).join('');
+            } else {
+                select.innerHTML = '<option value="">No active portfolios found</option>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading portfolios:', error);
+            document.getElementById('portfolioSelect').innerHTML = '<option value="">Error loading portfolios</option>';
+        });
+    
+    modalInstance.show();
+    
+    // Clean up when modal is hidden
+    modal.addEventListener('hidden.bs.modal', function () {
+        modal.remove();
+    });
+}
+
+function confirmExecuteSignal(signalId) {
+    const portfolioId = document.getElementById('portfolioSelect').value;
+    if (!portfolioId) {
+        alert('Please select a portfolio');
+        return;
+    }
+    
+    const button = event.target;
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="bi bi-arrow-repeat spinner-border-sm"></i> Executing...';
+    
+    // Execute the trade
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (!csrfToken) {
+        alert('Error: CSRF token not found. Please refresh the page and try again.');
+        button.disabled = false;
+        button.innerHTML = originalText;
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('portfolio_id', portfolioId);
+    formData.append('csrfmiddlewaretoken', csrfToken.value);
+    
+    fetch(`/signal/${signalId}/execute/`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload(); // Refresh to show updated signal status
+        } else if (data.requires_auth) {
+            // Portfolio not connected to SnapTrade
+            alert('Portfolio not connected to SnapTrade. Please reconnect your brokerage account in the Portfolio settings.');
+            button.disabled = false;
+            button.innerHTML = originalText;
+        } else {
+            alert('Error: ' + data.error);
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
+    })
+    .catch(error => {
+        console.error('Error executing signal:', error);
+        alert('Error executing trade: ' + error.message);
+        button.disabled = false;
+        button.innerHTML = originalText;
+    });
+}
+
+// Generate new trading signals
+function generateSignals() {
+    if (!confirm('Generate new trading signals based on current momentum data? This may take a few moments.')) {
+        return;
+    }
+    
+    const button = event.target;
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="bi bi-arrow-repeat spinner-border-sm"></i> Generating...';
+    
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    fetch('{% url "trading:generate_signals" %}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload(); // Refresh to show new signals
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error generating signals:', error);
+        alert('Error generating signals');
+    })
+    .finally(() => {
+        button.disabled = false;
+        button.innerHTML = originalText;
+    });
+}
+
+
+// Delete all pending signals
+function deletePendingSignals() {
+    if (!confirm('Are you sure you want to delete ALL pending trading signals? This action cannot be undone.')) {
+        return;
+    }
+    
+    const button = event.target;
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="bi bi-arrow-repeat spinner-border-sm"></i> Deleting...';
+    
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    fetch('{% url "trading:delete_pending_signals" %}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload(); // Refresh to show updated signals
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error deleting pending signals:', error);
+        alert('Error deleting pending signals');
+    })
+    .finally(() => {
+        button.disabled = false;
+        button.innerHTML = originalText;
+    });
+}
+</script>
+
+<!-- Add CSRF token for AJAX requests -->
+{% csrf_token %}
+{% endblock %}
