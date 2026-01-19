@@ -1,0 +1,281 @@
+{% extends 'base.html' %}
+
+{% block title %}Trading Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="fas fa-exchange-alt"></i> Trading Dashboard</h1>
+        <p class="text-muted">Automated ETF trading based on index trend signals</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card card-stats">
+            <div class="card-body">
+                <div class="d-flex">
+                    <div class="flex-grow-1">
+                        <p class="card-category text-muted">Active Accounts</p>
+                        <h3 class="card-title">{{ accounts.count }}</h3>
+                    </div>
+                    <div class="icon">
+                        <i class="fas fa-user-circle fa-2x text-primary"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stats">
+            <div class="card-body">
+                <div class="d-flex">
+                    <div class="flex-grow-1">
+                        <p class="card-category text-muted">Portfolio Positions</p>
+                        <h3 class="card-title">{{ portfolio_positions.count }}</h3>
+                    </div>
+                    <div class="icon">
+                        <i class="fas fa-wallet fa-2x text-success"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stats">
+            <div class="card-body">
+                <div class="d-flex">
+                    <div class="flex-grow-1">
+                        <p class="card-category text-muted">Recent Trades</p>
+                        <h3 class="card-title">{{ recent_trades.count }}</h3>
+                    </div>
+                    <div class="icon">
+                        <i class="fas fa-exchange-alt fa-2x text-info"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stats">
+            <div class="card-body">
+                <div class="d-flex">
+                    <div class="flex-grow-1">
+                        <p class="card-category text-muted">Pending Signals</p>
+                        <h3 class="card-title text-warning">{{ pending_signals.count }}</h3>
+                    </div>
+                    <div class="icon">
+                        <i class="fas fa-clock fa-2x text-warning"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-tools"></i> Trading Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <button type="button" 
+                                class="btn btn-info btn-action w-100"
+                                data-action
+                                onclick="handleAction('{% url 'trading:sync_portfolio' %}', this, 'Portfolio synced successfully')">
+                            <i class="fas fa-sync"></i> Sync Portfolio with SnapTrade
+                        </button>
+                        <small class="form-text text-muted">Synchronize current positions from SnapTrade</small>
+                    </div>
+                    <div class="col-md-6">
+                        <a href="{% url 'trading:trades_list' %}" class="btn btn-outline-primary w-100">
+                            <i class="fas fa-list"></i> View All Trades
+                        </a>
+                        <small class="form-text text-muted">View complete trading history</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-signal"></i> Pending Trading Signals</h5>
+            </div>
+            <div class="card-body">
+                {% if pending_signals %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Signal</th>
+                                    <th>ETF</th>
+                                    <th>Date</th>
+                                    <th>Price</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for signal in pending_signals %}
+                                <tr class="{% if signal.signal_type == 'BUY' %}signal-buy{% else %}signal-sell{% endif %}">
+                                    <td>
+                                        {% if signal.signal_type == 'BUY' %}
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-arrow-up"></i> Golden Cross
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-danger">
+                                                <i class="fas fa-arrow-down"></i> Death Cross
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td><strong>{{ signal.etf.ticker }}</strong></td>
+                                    <td>{{ signal.signal_date|date:"M d, Y" }}</td>
+                                    <td>${{ signal.close_price }}</td>
+                                    <td>
+                                        <button type="button" 
+                                                class="btn btn-sm btn-{% if signal.signal_type == 'BUY' %}success{% else %}danger{% endif %} btn-action"
+                                                data-action
+                                                onclick="handleAction('{% url 'trading:execute_signal' signal.id %}', this, 'Signal executed successfully')">
+                                            <i class="fas fa-play"></i> Execute
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted">No pending signals to execute.</p>
+                    <a href="{% url 'market_data:dashboard' %}" class="btn btn-outline-primary">
+                        <i class="fas fa-search"></i> Detect New Signals
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-chart-pie"></i> Current Portfolio</h5>
+            </div>
+            <div class="card-body">
+                {% if portfolio_positions %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>ETF</th>
+                                    <th>Quantity</th>
+                                    <th>Avg Cost</th>
+                                    <th>Last Updated</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for position in portfolio_positions %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ position.etf.ticker }}</strong><br>
+                                        <small class="text-muted">{{ position.etf.name|truncatechars:20 }}</small>
+                                    </td>
+                                    <td>{{ position.quantity }}</td>
+                                    <td>
+                                        {% if position.avg_cost %}
+                                            ${{ position.avg_cost|floatformat:2 }}
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <small>{{ position.last_updated|date:"M d, H:i" }}</small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="text-center mt-3">
+                        <a href="{% url 'trading:portfolio' %}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-eye"></i> View Full Portfolio
+                        </a>
+                    </div>
+                {% else %}
+                    <p class="text-muted">No current positions.</p>
+                    <p class="text-muted">Execute buy signals to build your portfolio.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-history"></i> Recent Trades</h5>
+            </div>
+            <div class="card-body">
+                {% if recent_trades %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Type</th>
+                                    <th>ETF</th>
+                                    <th>Quantity</th>
+                                    <th>Price</th>
+                                    <th>Status</th>
+                                    <th>Signal</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for trade in recent_trades %}
+                                <tr>
+                                    <td>{{ trade.created_at|date:"M d, Y H:i" }}</td>
+                                    <td>
+                                        <span class="badge bg-{% if trade.trade_type == 'BUY' %}success{% else %}danger{% endif %}">
+                                            {{ trade.trade_type }}
+                                        </span>
+                                    </td>
+                                    <td><strong>{{ trade.etf.ticker }}</strong></td>
+                                    <td>{{ trade.quantity }}</td>
+                                    <td>
+                                        {% if trade.price %}
+                                            ${{ trade.price }}
+                                        {% else %}
+                                            <span class="text-muted">Market</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-{% if trade.status == 'EXECUTED' %}success{% elif trade.status == 'PENDING' %}warning{% else %}danger{% endif %}">
+                                            {{ trade.status }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if trade.signal %}
+                                            <small>{{ trade.signal.signal_type }} signal from {{ trade.signal.signal_date|date:"M d" }}</small>
+                                        {% else %}
+                                            <span class="text-muted">Manual</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted">No trades executed yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

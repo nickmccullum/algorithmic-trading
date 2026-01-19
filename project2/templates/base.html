@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Index Trend Trading{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .trend-bullish { color: #28a745; }
+        .trend-bearish { color: #dc3545; }
+        .signal-buy { background-color: #d4edda; }
+        .signal-sell { background-color: #f8d7da; }
+        .card-stats { border-left: 4px solid #007bff; }
+        .navbar-brand { font-weight: bold; }
+        .btn-action { margin: 2px; }
+    </style>
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'market_data:dashboard' %}">
+                <i class="fas fa-chart-line"></i> Index Trend Trading
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="{% url 'market_data:dashboard' %}">
+                    <i class="fas fa-chart-area"></i> Market Data
+                </a>
+                <a class="nav-link" href="{% url 'trading:dashboard' %}">
+                    <i class="fas fa-exchange-alt"></i> Trading
+                </a>
+                <a class="nav-link" href="{% url 'market_data:signals_list' %}">
+                    <i class="fas fa-signal"></i> Signals
+                </a>
+                <a class="nav-link" href="{% url 'trading:portfolio' %}">
+                    <i class="fas fa-wallet"></i> Portfolio
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <footer class="bg-dark text-white text-center py-3 mt-5">
+        <div class="container">
+            <small>Index Trend Trading System | 50/200 MA Strategy</small>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        // CSRF token for AJAX requests
+        const csrfToken = '{{ csrf_token }}';
+        
+        // Function to make AJAX requests with CSRF token
+        function makeRequest(url, method = 'GET', data = null) {
+            const config = {
+                method: method,
+                url: url,
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'Content-Type': 'application/json',
+                }
+            };
+            
+            if (data && method !== 'GET') {
+                config.data = data;
+            }
+            
+            return axios(config);
+        }
+        
+        // Function to handle action buttons
+        function handleAction(url, buttonElement, successMessage = 'Action completed successfully') {
+            buttonElement.disabled = true;
+            buttonElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+            
+            makeRequest(url, 'POST')
+                .then(response => {
+                    if (response.data.status === 'success') {
+                        showAlert(successMessage, 'success');
+                        setTimeout(() => window.location.reload(), 1000);
+                    } else {
+                        showAlert(response.data.message || 'Action failed', 'danger');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showAlert('An error occurred while processing the request', 'danger');
+                })
+                .finally(() => {
+                    buttonElement.disabled = false;
+                    buttonElement.innerHTML = buttonElement.getAttribute('data-original-text');
+                });
+        }
+        
+        // Function to show alerts
+        function showAlert(message, type) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            const container = document.querySelector('.container');
+            container.insertBefore(alertDiv, container.firstChild);
+            
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+        }
+        
+        // Store original button text on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('button[data-action]').forEach(button => {
+                button.setAttribute('data-original-text', button.innerHTML);
+            });
+        });
+    </script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

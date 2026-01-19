@@ -1,0 +1,7 @@
+Django==5.2.5
+massive
+requests
+python-dateutil
+numpy
+pandas
+snaptrade-python-sdk
