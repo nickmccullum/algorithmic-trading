@@ -1,0 +1,207 @@
+{% extends 'base.html' %}
+
+{% block title %}Trading Signals{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="fas fa-signal"></i> Trading Signals</h1>
+        <p class="text-muted">Golden Cross and Death Cross signals from 50/200 MA strategy</p>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <h6>Filter Signals</h6>
+                        <div class="btn-group" role="group">
+                            <a href="{% url 'market_data:signals_list' %}" 
+                               class="btn {% if not signal_type %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                                All Signals
+                            </a>
+                            <a href="{% url 'market_data:signals_list' %}?type=BUY" 
+                               class="btn {% if signal_type == 'BUY' %}btn-success{% else %}btn-outline-success{% endif %}">
+                                <i class="fas fa-arrow-up"></i> Buy Signals
+                            </a>
+                            <a href="{% url 'market_data:signals_list' %}?type=SELL" 
+                               class="btn {% if signal_type == 'SELL' %}btn-danger{% else %}btn-outline-danger{% endif %}">
+                                <i class="fas fa-arrow-down"></i> Sell Signals
+                            </a>
+                        </div>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <a href="{% url 'trading:dashboard' %}" class="btn btn-outline-primary">
+                            <i class="fas fa-exchange-alt"></i> Go to Trading
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-list"></i> 
+                    {% if signal_type == 'BUY' %}
+                        Buy Signals (Golden Cross)
+                    {% elif signal_type == 'SELL' %}
+                        Sell Signals (Death Cross)
+                    {% else %}
+                        All Trading Signals
+                    {% endif %}
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if page_obj %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Signal Type</th>
+                                    <th>Index</th>
+                                    <th>ETF</th>
+                                    <th>Close Price</th>
+                                    <th>50-Day MA</th>
+                                    <th>200-Day MA</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for signal in page_obj %}
+                                <tr class="{% if signal.signal_type == 'BUY' %}signal-buy{% else %}signal-sell{% endif %}">
+                                    <td>{{ signal.signal_date|date:"M d, Y" }}</td>
+                                    <td>
+                                        {% if signal.signal_type == 'BUY' %}
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-arrow-up"></i> Golden Cross
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-danger">
+                                                <i class="fas fa-arrow-down"></i> Death Cross
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <strong>{{ signal.index.name }}</strong><br>
+                                        <small class="text-muted">{{ signal.index.massive_ticker }}</small>
+                                    </td>
+                                    <td>
+                                        <strong>{{ signal.etf.ticker }}</strong><br>
+                                        <small class="text-muted">{{ signal.etf.name|truncatechars:30 }}</small>
+                                    </td>
+                                    <td>${{ signal.close_price|floatformat:2 }}</td>
+                                    <td>
+                                        <span class="{% if signal.ma_50 > signal.ma_200 %}trend-bullish{% else %}trend-bearish{% endif %}">
+                                            ${{ signal.ma_50|floatformat:2 }}
+                                        </span>
+                                    </td>
+                                    <td>${{ signal.ma_200|floatformat:2 }}</td>
+                                    <td>
+                                        {% if signal.executed %}
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-check"></i> Executed
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-warning">
+                                                <i class="fas fa-clock"></i> Pending
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if not signal.executed %}
+                                            <button type="button" 
+                                                    class="btn btn-sm btn-{% if signal.signal_type == 'BUY' %}success{% else %}danger{% endif %} btn-action"
+                                                    data-action
+                                                    onclick="handleAction('{% url 'trading:execute_signal' signal.id %}', this, 'Signal executed successfully')">
+                                                <i class="fas fa-play"></i> Execute
+                                            </button>
+                                        {% else %}
+                                            <span class="text-muted">Completed</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    {% if page_obj.has_other_pages %}
+                        <nav aria-label="Signals pagination">
+                            <ul class="pagination justify-content-center">
+                                {% if page_obj.has_previous %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if signal_type %}&type={{ signal_type }}{% endif %}">&laquo; Previous</a>
+                                    </li>
+                                {% endif %}
+
+                                {% for num in page_obj.paginator.page_range %}
+                                    {% if page_obj.number == num %}
+                                        <li class="page-item active">
+                                            <span class="page-link">{{ num }}</span>
+                                        </li>
+                                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ num }}{% if signal_type %}&type={{ signal_type }}{% endif %}">{{ num }}</a>
+                                        </li>
+                                    {% endif %}
+                                {% endfor %}
+
+                                {% if page_obj.has_next %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if signal_type %}&type={{ signal_type }}{% endif %}">Next &raquo;</a>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    {% endif %}
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                        <h4>No signals found</h4>
+                        <p class="text-muted">
+                            {% if signal_type %}
+                                No {{ signal_type|lower }} signals have been detected yet.
+                            {% else %}
+                                No trading signals have been detected yet.
+                            {% endif %}
+                        </p>
+                        <a href="{% url 'market_data:dashboard' %}" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Detect New Signals
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card bg-light">
+            <div class="card-body">
+                <h6><i class="fas fa-info-circle"></i> Strategy Information</h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-success">Golden Cross (Buy Signal)</h6>
+                        <p class="small">When the 50-day moving average crosses above the 200-day moving average, indicating a potential upward trend.</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-danger">Death Cross (Sell Signal)</h6>
+                        <p class="small">When the 50-day moving average crosses below the 200-day moving average, indicating a potential downward trend.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

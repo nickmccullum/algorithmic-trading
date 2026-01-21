@@ -1,0 +1,219 @@
+{% extends 'base.html' %}
+
+{% block title %}Market Data Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1><i class="fas fa-chart-area"></i> Market Data Dashboard</h1>
+        <p class="text-muted">50/200 Moving Average Strategy for Index ETF Trading</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card card-stats">
+            <div class="card-body">
+                <div class="d-flex">
+                    <div class="flex-grow-1">
+                        <p class="card-category text-muted">Tracked Indices</p>
+                        <h3 class="card-title">{{ indices.count }}</h3>
+                    </div>
+                    <div class="icon">
+                        <i class="fas fa-chart-line fa-2x text-primary"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stats">
+            <div class="card-body">
+                <div class="d-flex">
+                    <div class="flex-grow-1">
+                        <p class="card-category text-muted">Recent Signals</p>
+                        <h3 class="card-title">{{ recent_signals.count }}</h3>
+                    </div>
+                    <div class="icon">
+                        <i class="fas fa-signal fa-2x text-success"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stats">
+            <div class="card-body">
+                <div class="d-flex">
+                    <div class="flex-grow-1">
+                        <p class="card-category text-muted">Buy Signals</p>
+                        <h3 class="card-title text-success">
+                            {% for signal in recent_signals %}
+                                {% if signal.signal_type == 'BUY' %}{{ forloop.counter0|add:1 }}{% endif %}
+                            {% endfor %}
+                        </h3>
+                    </div>
+                    <div class="icon">
+                        <i class="fas fa-arrow-up fa-2x text-success"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stats">
+            <div class="card-body">
+                <div class="d-flex">
+                    <div class="flex-grow-1">
+                        <p class="card-category text-muted">Sell Signals</p>
+                        <h3 class="card-title text-danger">
+                            {% for signal in recent_signals %}
+                                {% if signal.signal_type == 'SELL' %}{{ forloop.counter0|add:1 }}{% endif %}
+                            {% endfor %}
+                        </h3>
+                    </div>
+                    <div class="icon">
+                        <i class="fas fa-arrow-down fa-2x text-danger"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-cogs"></i> Data Management</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <button type="button" 
+                                class="btn btn-primary btn-action w-100"
+                                data-action
+                                onclick="handleAction('{% url 'market_data:fetch_data' %}', this, 'Market data fetched successfully')">
+                            <i class="fas fa-download"></i> Fetch Market Data
+                        </button>
+                        <small class="form-text text-muted">Fetch latest index data from Massive API</small>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="button" 
+                                class="btn btn-warning btn-action w-100"
+                                data-action
+                                onclick="handleAction('{% url 'market_data:calculate_ma' %}', this, 'Moving averages calculated successfully')">
+                            <i class="fas fa-calculator"></i> Calculate Moving Averages
+                        </button>
+                        <small class="form-text text-muted">Calculate 50-day and 200-day moving averages</small>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="button" 
+                                class="btn btn-success btn-action w-100"
+                                data-action
+                                onclick="handleAction('{% url 'market_data:detect_signals' %}', this, 'Trading signals detected successfully')">
+                            <i class="fas fa-search"></i> Detect Signals
+                        </button>
+                        <small class="form-text text-muted">Detect golden cross and death cross signals</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-list"></i> Tracked Indices</h5>
+            </div>
+            <div class="card-body">
+                {% if indices %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Index</th>
+                                    <th>Massive Ticker</th>
+                                    <th>ETF</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for index in indices %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ index.name }}</strong><br>
+                                        <small class="text-muted">{{ index.description|truncatechars:50 }}</small>
+                                    </td>
+                                    <td><code>{{ index.massive_ticker }}</code></td>
+                                    <td>
+                                        {% if index.etf %}
+                                            <span class="badge bg-primary">{{ index.etf.ticker }}</span><br>
+                                            <small>{{ index.etf.name }}</small>
+                                        {% else %}
+                                            <span class="text-muted">No ETF configured</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'market_data:index_detail' index.id %}" 
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i> Details
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted">No indices configured. Please add indices through the Django admin.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-signal"></i> Recent Signals</h5>
+            </div>
+            <div class="card-body">
+                {% if recent_signals %}
+                    {% for signal in recent_signals %}
+                    <div class="d-flex justify-content-between align-items-center p-2 mb-2 {% if signal.signal_type == 'BUY' %}signal-buy{% else %}signal-sell{% endif %} rounded">
+                        <div>
+                            <strong>
+                                {% if signal.signal_type == 'BUY' %}
+                                    <i class="fas fa-arrow-up text-success"></i>
+                                {% else %}
+                                    <i class="fas fa-arrow-down text-danger"></i>
+                                {% endif %}
+                                {{ signal.etf.ticker }}
+                            </strong><br>
+                            <small>{{ signal.signal_date|date:"M d, Y" }}</small>
+                        </div>
+                        <div class="text-end">
+                            <small>${{ signal.close_price }}</small><br>
+                            {% if not signal.executed %}
+                                <span class="badge bg-warning">Pending</span>
+                            {% else %}
+                                <span class="badge bg-success">Executed</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                    <div class="text-center mt-3">
+                        <a href="{% url 'market_data:signals_list' %}" class="btn btn-outline-primary btn-sm">
+                            View All Signals
+                        </a>
+                    </div>
+                {% else %}
+                    <p class="text-muted">No recent signals found.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
