@@ -700,3 +700,65 @@ def recalculate_momentum(request):
         'scores_updated': len(momentum_scores),
         'calculation_date': calculation_date.isoformat()
     })
+
+
+def sync_portfolio(request, portfolio_id):
+    """Sync portfolio positions and balances with SnapTrade"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
+    
+    portfolio = get_object_or_404(Portfolio, id=portfolio_id)
+    
+    # Check if portfolio has SnapTrade integration
+    if not portfolio.snaptrade_user_id or not portfolio.snaptrade_account_id:
+        return JsonResponse({
+            'success': False,
+            'error': 'Portfolio not connected to SnapTrade. Please reconnect your brokerage account.',
+            'requires_auth': True
+        })
+    
+    # Get SnapTrade user secret from portfolio
+    user_secret = portfolio.snaptrade_user_secret
+    if not user_secret:
+        return JsonResponse({
+            'success': False,
+            'error': 'Portfolio not connected to SnapTrade. Please reconnect your brokerage account.',
+            'requires_auth': True
+        })
+    
+    try:
+        # Get trading executor
+        from trading.services.snaptrade_client import get_trading_executor
+        trading_executor = get_trading_executor()
+        
+        # Sync positions from SnapTrade
+        synced_positions = trading_executor.sync_portfolio_positions(portfolio, user_secret)
+        
+        # Update portfolio totals
+        portfolio.calculate_total_value()
+        portfolio.save()
+        
+        # Count active positions
+        active_positions = len([p for p in synced_positions if p.quantity > 0])
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Successfully synced portfolio with SnapTrade. Updated {len(synced_positions)} positions.',
+            'positions_synced': len(synced_positions),
+            'active_positions': active_positions,
+            'current_cash': float(portfolio.current_cash),
+            'total_value': float(portfolio.total_value)
+        })
+        
+    except ValueError as e:
+        logger.error(f"Error syncing portfolio {portfolio_id}: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': f'Failed to sync portfolio: {str(e)}'
+        })
+    except Exception as e:
+        logger.error(f"Unexpected error syncing portfolio {portfolio_id}: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': 'An unexpected error occurred while syncing portfolio. Please try again.'
+        })

@@ -18,6 +18,7 @@ urlpatterns = [
     
     # Trading endpoints
     path('portfolio/<int:portfolio_id>/trade/', views.execute_trade, name='execute_trade'),
+    path('portfolio/<int:portfolio_id>/sync/', views.sync_portfolio, name='sync_portfolio'),
     path('signal/<int:signal_id>/execute/', views.execute_signal_trade, name='execute_signal_trade'),
     path('signals/generate/', views.generate_signals, name='generate_signals'),
     path('signals/delete-pending/', views.delete_pending_signals, name='delete_pending_signals'),

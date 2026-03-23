@@ -386,9 +386,47 @@ document.getElementById('manualTradeForm').addEventListener('submit', function(e
 
 // Quick Action Functions
 function syncPortfolio() {
-    if (confirm('Sync portfolio with SnapTrade? This will update positions and balances.')) {
-        alert('Sync functionality coming soon!');
+    if (!confirm('Sync portfolio with SnapTrade? This will update positions and balances.')) {
+        return;
     }
+    
+    const button = event.target;
+    const originalHTML = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="bi bi-arrow-repeat spinner-border-sm"></i><br><small>Syncing...</small>';
+    
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    fetch(`/portfolio/{{ portfolio.id }}/sync/`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message);
+            // Refresh page to show updated positions and balances
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            if (data.requires_auth) {
+                showAlert('warning', data.error + ' Please reconnect your brokerage account.');
+            } else {
+                showAlert('error', data.error);
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Sync error:', error);
+        showAlert('error', 'Failed to sync portfolio. Please try again.');
+    })
+    .finally(() => {
+        button.disabled = false;
+        button.innerHTML = originalHTML;
+    });
 }
 
 function generateSignals() {
