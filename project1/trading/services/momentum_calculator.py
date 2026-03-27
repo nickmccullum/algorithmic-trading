@@ -6,6 +6,7 @@ from typing import List, Dict, Optional, Tuple
 import pandas as pd
 import numpy as np
 import logging
+import time
 
 from trading.models import Stock, PriceData, MomentumScore
 from trading.services.massive_client import get_massive_client
@@ -88,6 +89,9 @@ class MomentumCalculator:
         stock_list: List[Stock] = None, 
         calculation_date: datetime = None
     ) -> List[MomentumScore]:
+        """
+        Optimized bulk momentum calculation using batch API calls to avoid rate limits
+        """
         if calculation_date is None:
             calculation_date = timezone.now().date()
 
@@ -95,8 +99,72 @@ class MomentumCalculator:
             stock_list = Stock.objects.filter(is_active=True)
 
         momentum_scores = []
+        tickers = [stock.ticker for stock in stock_list]
         
-        logger.info(f"Calculating momentum scores for {len(stock_list)} stocks")
+        logger.info(f"Calculating momentum scores for {len(stock_list)} stocks using bulk API fetch")
+
+        try:
+            # Fetch all momentum data in one bulk operation
+            bulk_momentum_data = self.massive_client.fetch_bulk_momentum_data(
+                tickers=tickers,
+                calculation_date=calculation_date
+            )
+            
+            logger.info(f"Successfully fetched bulk momentum data for {len(bulk_momentum_data)} stocks")
+            
+            # Process each stock with the bulk data
+            for stock in stock_list:
+                try:
+                    ticker_data = bulk_momentum_data.get(stock.ticker, {})
+                    price_12m = ticker_data.get('price_12m')
+                    price_1m = ticker_data.get('price_1m')
+                    
+                    if price_12m and price_1m and price_12m > 0:
+                        momentum = (price_1m - price_12m) / price_12m
+                        momentum_decimal = Decimal(str(momentum))
+                        
+                        # Create or update momentum score
+                        momentum_score, created = MomentumScore.objects.update_or_create(
+                            stock=stock,
+                            calculation_date=calculation_date,
+                            defaults={
+                                'momentum_score': momentum_decimal,
+                                'period_start': calculation_date - timedelta(days=365),
+                                'period_end': calculation_date - timedelta(days=30),
+                            }
+                        )
+                        momentum_scores.append(momentum_score)
+                        
+                        action = "Created" if created else "Updated"
+                        logger.info(f"{action} momentum score for {stock.ticker}: {momentum_decimal:.6f}")
+                    else:
+                        logger.warning(f"Could not calculate momentum for {stock.ticker}: "
+                                     f"price_12m={price_12m}, price_1m={price_1m}")
+
+                except (ValueError, TypeError) as e:
+                    logger.error(f"Error processing momentum for {stock.ticker}: {str(e)}")
+
+            logger.info(f"Processed {len(momentum_scores)} momentum scores successfully")
+            
+        except Exception as e:
+            logger.error(f"Error in bulk momentum calculation: {str(e)}")
+            # Fallback to individual API calls if bulk fails
+            logger.info("Falling back to individual API calls...")
+            return self._calculate_momentum_scores_individual(stock_list, calculation_date)
+
+        return momentum_scores
+
+    def _calculate_momentum_scores_individual(
+        self, 
+        stock_list: List[Stock], 
+        calculation_date: datetime
+    ) -> List[MomentumScore]:
+        """
+        Fallback method using individual API calls with enhanced rate limiting
+        """
+        momentum_scores = []
+        
+        logger.info(f"Using individual API calls for {len(stock_list)} stocks with rate limiting")
 
         for i, stock in enumerate(stock_list):
             try:
@@ -120,12 +188,16 @@ class MomentumCalculator:
                     else:
                         logger.info(f"Updated momentum score for {stock.ticker}: {momentum}")
 
-                # Log progress every 10 stocks
-                if (i + 1) % 10 == 0:
+                # Log progress every 5 stocks (more frequent for individual calls)
+                if (i + 1) % 5 == 0:
                     logger.info(f"Processed {i + 1}/{len(stock_list)} stocks")
 
-            except (ValueError, TypeError):
-                logger.error(f"Error processing {stock.ticker}: Invalid momentum calculation data")
+                # Add delay every 3 stocks to avoid rate limits
+                if (i + 1) % 3 == 0 and i + 1 < len(stock_list):
+                    time.sleep(2)
+
+            except Exception as e:
+                logger.error(f"Error processing {stock.ticker}: {str(e)}")
 
         return momentum_scores
 
