@@ -74,9 +74,9 @@
                                 <th>Time</th>
                                 <th>Ticker</th>
                                 <th>Signal Type</th>
+                                <th>Trade Size</th>
                                 <th>Momentum Score</th>
                                 <th>Price</th>
-                                <th>Strength</th>
                                 <th>Reason</th>
                                 <th>Status</th>
                                 <th>Action</th>
@@ -94,6 +94,17 @@
                                     </span>
                                 </td>
                                 <td>
+                                    <span class="fw-bold {% if signal.signal_type == 'BUY' %}text-success{% elif signal.signal_type == 'SELL' %}text-danger{% endif %}">
+                                        {% if signal.signal_type == 'BUY' %}
+                                            $100 worth
+                                        {% elif signal.target_quantity %}
+                                            {{ signal.target_quantity|floatformat:0 }} shares
+                                        {% else %}
+                                            All shares
+                                        {% endif %}
+                                    </span>
+                                </td>
+                                <td>
                                     {% if signal.momentum_score %}
                                         <span class="{% if signal.momentum_score.momentum_score > 0 %}momentum-positive{% else %}momentum-negative{% endif %}">
                                             {{ signal.momentum_score.momentum_score|floatformat:4 }}
@@ -103,28 +114,7 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {% if signal.price %}
-                                        ${{ signal.price|floatformat:2 }}
-                                    {% else %}
-                                        -
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if signal.strength %}
-                                        <div class="progress" style="height: 20px;">
-                                            <div class="progress-bar {% if signal.strength >= 0.7 %}bg-success{% elif signal.strength >= 0.4 %}bg-warning{% else %}bg-danger{% endif %}" 
-                                                 role="progressbar" 
-                                                 style="width: {{ signal.strength|floatformat:0 }}%" 
-                                                 aria-valuenow="{{ signal.strength|floatformat:0 }}" 
-                                                 aria-valuemin="0" 
-                                                 aria-valuemax="100"
-                                                 data-strength="{{ signal.strength }}">
-                                                {{ signal.strength|floatformat:2 }}
-                                            </div>
-                                        </div>
-                                    {% else %}
-                                        -
-                                    {% endif %}
+                                    <span class="text-muted small">Market Price</span>
                                 </td>
                                 <td>
                                     <small class="text-muted">
@@ -145,7 +135,13 @@
                                         <button class="btn btn-sm btn-{% if signal.signal_type == 'BUY' %}success{% else %}danger{% endif %}" 
                                                 onclick="executeSignal({{ signal.id }}, '{{ signal.signal_type }}', '{{ signal.stock.ticker }}')">
                                             <i class="bi bi-{% if signal.signal_type == 'BUY' %}cart-plus{% else %}cart-dash{% endif %}"></i>
-                                            {{ signal.signal_type }}
+                                            {% if signal.signal_type == 'BUY' %}
+                                                BUY $100
+                                            {% elif signal.target_quantity %}
+                                                SELL {{ signal.target_quantity|floatformat:0 }} shares
+                                            {% else %}
+                                                SELL All
+                                            {% endif %}
                                         </button>
                                     {% else %}
                                         <span class="text-muted small">Completed</span>
@@ -255,6 +251,10 @@ function executeSignal(signalId, signalType, ticker) {
 }
 
 function showPortfolioSelectionModal(signalId, signalType, ticker) {
+    // Find the signal data to get trade size information
+    const signalRow = document.querySelector(`button[onclick*="${signalId}"]`).closest('tr');
+    const tradeSize = signalRow ? signalRow.querySelector('td:nth-child(5) span').textContent : 'N/A';
+    
     const modal = document.createElement('div');
     modal.className = 'modal fade';
     modal.innerHTML = `
@@ -265,7 +265,12 @@ function showPortfolioSelectionModal(signalId, signalType, ticker) {
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <p>Execute <strong>${signalType}</strong> signal for <strong>${ticker}</strong></p>
+                    <div class="alert alert-info">
+                        <h6 class="alert-heading">Trade Details</h6>
+                        <p class="mb-2"><strong>Action:</strong> ${signalType} <strong>${ticker}</strong></p>
+                        <p class="mb-0"><strong>Trade Size:</strong> <span class="fw-bold text-${signalType === 'BUY' ? 'success' : 'danger'}">${tradeSize}</span></p>
+                        ${signalType === 'BUY' ? '<p class="mb-0 small text-muted">Exact shares will be calculated at execution using current market price</p>' : ''}
+                    </div>
                     <div class="mb-3">
                         <label class="form-label">Select Portfolio:</label>
                         <select class="form-select" id="portfolioSelect">
@@ -276,7 +281,7 @@ function showPortfolioSelectionModal(signalId, signalType, ticker) {
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-${signalType === 'BUY' ? 'success' : 'danger'}" onclick="confirmExecuteSignal(${signalId})">
-                        Execute ${signalType}
+                        ${signalType === 'BUY' ? 'Execute BUY ($100)' : `Execute SELL (${tradeSize})`}
                     </button>
                 </div>
             </div>
@@ -357,7 +362,8 @@ function confirmExecuteSignal(signalId) {
             button.disabled = false;
             button.innerHTML = originalText;
         } else {
-            alert('Error: ' + data.error);
+            // Show detailed error message from backend
+            alert('Error: ' + (data.error || 'Unknown error occurred'));
             button.disabled = false;
             button.innerHTML = originalText;
         }

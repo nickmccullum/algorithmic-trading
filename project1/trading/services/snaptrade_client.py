@@ -108,28 +108,17 @@ class TradingExecutor:
 
         for stock in buy_list:
             try:
-                # Get current price (simplified - in production, use real-time quotes)
-                current_price = self._get_current_stock_price(stock.ticker)
-                if not current_price:
-                    logger.warning(f"Could not get current price for {stock.ticker}")
-                    continue
-
-                # Calculate quantity to buy
-                quantity = int(allocation_per_stock / current_price)
-                if quantity <= 0:
-                    continue
-
-                # Create trade record
+                # Create trade record (quantity will be determined by SnapTrade based on notional value)
                 trade = Trade.objects.create(
                     portfolio=portfolio,
                     stock=stock,
                     trade_type='BUY',
-                    quantity=quantity,
-                    price=current_price,
+                    quantity=0,  # Will be updated after execution with actual shares purchased
+                    price=allocation_per_stock,  # Store the dollar amount for reference
                     status='PENDING'
                 )
 
-                # Place order via SnapTrade SDK using place_force_order
+                # Place notional value order via SnapTrade SDK
                 order_response = self.snaptrade.trading.place_force_order(
                     user_id=portfolio.snaptrade_user_id,
                     user_secret=user_secret,
@@ -140,7 +129,7 @@ class TradingExecutor:
                         'price': None,  # Market order
                         'stop': None,
                         'time_in_force': 'Day',
-                        'units': quantity,
+                        'notional_value': float(allocation_per_stock),  # Dollar amount to invest
                         'symbol': stock.ticker
                     }
                 )
@@ -155,10 +144,12 @@ class TradingExecutor:
                 trade.save()
 
                 executed_trades.append(trade)
-                logger.info(f"Submitted buy order: {quantity} shares of {stock.ticker}")
+                logger.info(f"Submitted buy order: ${float(allocation_per_stock)} notional value of {stock.ticker}")
 
-            except (ValueError, TypeError, KeyError) as e:
+            except Exception as e:
                 logger.error(f"Error executing buy order for {stock.ticker}: {str(e)}")
+                # Re-raise the exception to surface SnapTrade errors to the UI
+                raise Exception(f"Buy order failed for {stock.ticker}: {str(e)}")
 
         return executed_trades
 
@@ -221,8 +212,10 @@ class TradingExecutor:
                 executed_trades.append(trade)
                 logger.info(f"Submitted sell order: {position.quantity} shares of {stock.ticker}")
 
-            except (ValueError, TypeError, KeyError) as e:
+            except Exception as e:
                 logger.error(f"Error executing sell order for {stock.ticker}: {str(e)}")
+                # Re-raise the exception to surface SnapTrade errors to the UI
+                raise Exception(f"Sell order failed for {stock.ticker}: {str(e)}")
 
         return executed_trades
 

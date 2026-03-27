@@ -122,6 +122,7 @@ def trading_signals(request):
         'stock', 'momentum_score'
     ).order_by('-signal_date', '-created_at')
     
+    
     # Group by signal type for summary
     buy_signals = signals.filter(signal_type='BUY')
     sell_signals = signals.filter(signal_type='SELL')
@@ -535,27 +536,35 @@ def execute_signal_trade(request, signal_id):
     from trading.services.snaptrade_client import get_trading_executor
     trading_executor = get_trading_executor()
     
-    # Execute trade via SnapTrade
-    if signal.signal_type == 'BUY':
-        # Use the proper SnapTrade buy execution
-        trades = trading_executor.execute_buy_orders(
-            portfolio=portfolio,
-            buy_list=[signal.stock],
-            total_value=signal.target_value or Decimal('1000'),  # Use signal target value
-            user_secret=user_secret
-        )
-    else:  # SELL
-        # Use the proper SnapTrade sell execution  
-        trades = trading_executor.execute_sell_orders(
-            portfolio=portfolio,
-            sell_list=[signal.stock],
-            user_secret=user_secret
-        )
-    
-    if not trades:
+    # Execute trade via SnapTrade with detailed error handling
+    try:
+        if signal.signal_type == 'BUY':
+            # Use $100 notional trade for all BUY signals
+            trades = trading_executor.execute_buy_orders(
+                portfolio=portfolio,
+                buy_list=[signal.stock],
+                total_value=Decimal('100.00'),  # Fixed $100 notional trade
+                user_secret=user_secret
+            )
+        else:  # SELL
+            # Use the proper SnapTrade sell execution  
+            trades = trading_executor.execute_sell_orders(
+                portfolio=portfolio,
+                sell_list=[signal.stock],
+                user_secret=user_secret
+            )
+        
+        if not trades:
+            return JsonResponse({
+                'success': False,
+                'error': f'Failed to execute {signal.signal_type} order for {signal.stock.ticker}. No trades were created. This could be due to: insufficient funds, unable to get current price, invalid stock symbol, or broker connectivity issues.'
+            })
+            
+    except Exception as e:
+        logger.error(f"Error executing {signal.signal_type} trade for {signal.stock.ticker}: {str(e)}")
         return JsonResponse({
             'success': False,
-            'error': f'Failed to execute {signal.signal_type} order for {signal.stock.ticker}'
+            'error': f'SnapTrade Error: {str(e)}'
         })
     
     trade = trades[0]  # Get the first (and likely only) trade
@@ -565,9 +574,15 @@ def execute_signal_trade(request, signal_id):
     signal.executed_at = timezone.now()
     signal.save()
     
+    # Create appropriate success message based on signal type
+    if signal.signal_type == 'BUY':
+        message = f'BUY order for $100 of {signal.stock.ticker} submitted to broker successfully'
+    else:
+        message = f'SELL order for {trade.quantity} shares of {signal.stock.ticker} submitted to broker successfully'
+    
     return JsonResponse({
         'success': True,
-        'message': f'{signal.signal_type} order for {trade.quantity} shares of {signal.stock.ticker} submitted to broker successfully',
+        'message': message,
         'trade_id': trade.id,
         'external_order_id': trade.external_order_id,
         'status': trade.status
